@@ -14,6 +14,7 @@ from infrahub_sdk.schema import SchemaRootAPI as ClientSchemaRoot
 from infrahub_sdk.uuidt import UUIDT
 from pytest_httpx import HTTPXMock
 
+from infrahub import config
 from infrahub.core.constants import InfrahubKind
 from infrahub.core.schema import SchemaRoot, core_models
 from infrahub.git import InfrahubRepository
@@ -1346,3 +1347,12 @@ async def mock_update_artifact(httpx_mock: HTTPXMock) -> HTTPXMock:
         method="POST", json=response, match_headers={"X-Infrahub-Tracker": "mutation-coreartifact-update"}
     )
     return httpx_mock
+
+
+@pytest.fixture
+def git_user_config():
+    config.SETTINGS.git.user_email = "test@email.com"
+    config.SETTINGS.git.user_name = "Test User"
+    yield
+    config.SETTINGS.git.user_email = None
+    config.SETTINGS.git.user_name = None
