@@ -1359,7 +1359,7 @@ def git_user_config():
 
 
 @pytest.fixture
-def git_allow_explicit_merge_commit_config():
-    config.SETTINGS.git.allow_explicit_merge_commit = True
+def git_use_explicit_merge_commit_config():
+    config.SETTINGS.git.use_explicit_merge_commit = True
     yield
-    config.SETTINGS.git.allow_explicit_merge_commit = False
+    config.SETTINGS.git.use_explicit_merge_commit = False

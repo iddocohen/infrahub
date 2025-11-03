@@ -33,6 +33,7 @@ from infrahub.git.integrator import (
     ArtifactGenerateResult,
     CheckDefinitionInformation,
 )
+from infrahub.git.utils import get_git_user_config
 from infrahub.git.worktree import Worktree
 from infrahub.services import InfrahubServices
 from infrahub.utils import find_first_file_in_directory
@@ -1094,13 +1095,13 @@ async def test_new_repo_has_config(git_upstream_repo_01: dict[str, str | Path], 
     assert repo.directory_commits.is_dir()
     assert repo.directory_temp.is_dir()
 
-    with repo.get_git_repo_main().config_reader() as git_config:
-        assert git_config.get_value("user", "name") == "Test User"
-        assert git_config.get_value("user", "email") == "test@email.com"
+    user_name, user_email = get_git_user_config(repo=repo.get_git_repo_main())
+    assert user_name == "Test User"
+    assert user_email == "test@email.com"
 
 
-async def test_repo_merge_allow_explicit_merge(
-    git_repo_01: InfrahubRepository, branch02: BranchData, git_user_config, git_allow_explicit_merge_commit_config
+async def test_repo_merge_use_explicit_merge(
+    git_repo_01: InfrahubRepository, branch02: BranchData, git_user_config, git_use_explicit_merge_commit_config
 ):
     repo = git_repo_01
     await repo.create_branch_in_git(branch_name=branch02.name, branch_id=branch02.id)
@@ -1109,10 +1110,14 @@ async def test_repo_merge_allow_explicit_merge(
     assert commit.message.strip() == "Merged by Infrahub by Test User"
 
 
-async def test_repo_merge_allow_explicit_merge_raises_if_no_git_user_name(
-    git_repo_01: InfrahubRepository, branch02: BranchData, git_allow_explicit_merge_commit_config
+async def test_repo_merge_use_explicit_merge_uses_user_global_config(
+    git_repo_01: InfrahubRepository, branch02: BranchData, git_use_explicit_merge_commit_config
 ):
     repo = git_repo_01
     await repo.create_branch_in_git(branch_name=branch02.name, branch_id=branch02.id)
-    with pytest.raises(ValueError, match="Cannot allow explicit merge commit if git user_name setting is not set."):
-        await repo.merge(source_branch=branch02.name, dest_branch="main")
+    response = await repo.merge(source_branch=branch02.name, dest_branch="main")
+    git_repo = repo.get_git_repo_main()
+    commit = git_repo.commit(response)
+    user_name, _ = get_git_user_config(repo=git_repo)
+    assert user_name != "Test User"
+    assert commit.message.strip() == f"Merged by Infrahub by {user_name}"
