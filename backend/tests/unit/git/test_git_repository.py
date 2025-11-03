@@ -12,6 +12,7 @@ from infrahub_sdk.node import InfrahubNode
 from infrahub_sdk.uuidt import UUIDT
 from pytest_httpx._httpx_mock import HTTPXMock
 
+from infrahub import config
 from infrahub.core.branch import Branch
 from infrahub.core.constants import InfrahubKind
 from infrahub.core.registry import registry
@@ -1078,3 +1079,28 @@ async def test_compare_python_check(
     )
 
     assert await repo.compare_python_check_definition(check=check03, existing_check=existing_check) is False
+
+
+async def test_new_repo_has_config(git_upstream_repo_01: dict[str, str | Path], git_repos_dir: Path):
+    config.SETTINGS.git.user_email = "test@email.com"
+    config.SETTINGS.git.user_name = "Test User"
+
+    repo = await InfrahubRepository.new(
+        id=UUIDT.new(),
+        name=git_upstream_repo_01["name"],
+        location=str(git_upstream_repo_01["path"]),
+        client=InfrahubClient(config=Config(requester=dummy_async_request)),
+    )
+
+    # Check if all the directories are present
+    assert repo.directory_root.is_dir()
+    assert repo.directory_branches.is_dir()
+    assert repo.directory_commits.is_dir()
+    assert repo.directory_temp.is_dir()
+
+    with repo.get_git_repo_main().config_reader() as git_config:
+        assert git_config.get_value("user", "name") == "Test User"
+        assert git_config.get_value("user", "email") == "test@email.com"
+
+    config.SETTINGS.git.user_email = None
+    config.SETTINGS.git.user_name = None
