@@ -445,6 +445,9 @@ class GitSettings(BaseSettings):
         default_factory=default_append_git_suffix_domains,
         description="Automatically append '.git' to HTTP URLs if for these domains.",
     )
+    allow_explicit_merge_commit: bool = Field(
+        default=False, description="Whether to allow explicit merge commits when infrahub merges branches"
+    )
     user_name: str | None = Field(default=None, description="User name of the git user")
     user_email: EmailStr | None = Field(default=None, description="Email of the git user")
 

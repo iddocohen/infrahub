@@ -1356,3 +1356,10 @@ def git_user_config():
     yield
     config.SETTINGS.git.user_email = None
     config.SETTINGS.git.user_name = None
+
+
+@pytest.fixture
+def git_allow_explicit_merge_commit_config():
+    config.SETTINGS.git.allow_explicit_merge_commit = True
+    yield
+    config.SETTINGS.git.allow_explicit_merge_commit = False

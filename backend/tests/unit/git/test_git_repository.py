@@ -1097,3 +1097,22 @@ async def test_new_repo_has_config(git_upstream_repo_01: dict[str, str | Path], 
     with repo.get_git_repo_main().config_reader() as git_config:
         assert git_config.get_value("user", "name") == "Test User"
         assert git_config.get_value("user", "email") == "test@email.com"
+
+
+async def test_repo_merge_allow_explicit_merge(
+    git_repo_01: InfrahubRepository, branch02: BranchData, git_user_config, git_allow_explicit_merge_commit_config
+):
+    repo = git_repo_01
+    await repo.create_branch_in_git(branch_name=branch02.name, branch_id=branch02.id)
+    response = await repo.merge(source_branch=branch02.name, dest_branch="main")
+    commit = repo.get_git_repo_main().commit(response)
+    assert commit.message.strip() == "Merged by Infrahub by Test User"
+
+
+async def test_repo_merge_allow_explicit_merge_raises_if_no_git_user_name(
+    git_repo_01: InfrahubRepository, branch02: BranchData, git_allow_explicit_merge_commit_config
+):
+    repo = git_repo_01
+    await repo.create_branch_in_git(branch_name=branch02.name, branch_id=branch02.id)
+    with pytest.raises(ValueError, match="Cannot allow explicit merge commit if git user_name setting is not set."):
+        await repo.merge(source_branch=branch02.name, dest_branch="main")
