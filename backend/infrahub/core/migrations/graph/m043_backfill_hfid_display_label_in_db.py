@@ -689,7 +689,7 @@ class Migration043(MigrationRequiringRebase):
                 )
                 await update_display_label_query.execute(db=db)
 
-            if progress and update_task is not None:
+            if progress is not None and update_task is not None:
                 progress.update(update_task, advance=num_updates)
 
             if num_updates == 0:
