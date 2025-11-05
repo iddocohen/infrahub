@@ -8,6 +8,7 @@ from infrahub.core import registry
 from infrahub.core.constants import InfrahubKind
 from infrahub.core.ipam.utilization import PrefixUtilizationGetter
 from infrahub.core.manager import NodeManager
+from infrahub.core.protocols import CoreNode
 from infrahub.core.query.ipam import IPPrefixUtilization
 from infrahub.core.query.resource_manager import (
     IPAddressPoolGetIdentifiers,
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
 
     from infrahub.core.branch import Branch
     from infrahub.core.node import Node
-    from infrahub.core.protocols import CoreNode
     from infrahub.core.timestamp import Timestamp
     from infrahub.database import InfrahubDatabase
     from infrahub.graphql.initialization import GraphqlContext
@@ -83,8 +83,8 @@ class PoolAllocated(ObjectType):
         limit: int = 10,
     ) -> dict:
         graphql_context: GraphqlContext = info.context
-        pool: CoreNode | None = await NodeManager.get_one(
-            id=pool_id, db=graphql_context.db, branch=graphql_context.branch
+        pool = await NodeManager.get_one(
+            id=pool_id, db=graphql_context.db, kind=CoreNode, branch=graphql_context.branch
         )
 
         fields = extract_graphql_fields(info=info)
@@ -190,7 +190,7 @@ class PoolUtilization(ObjectType):
     ) -> dict:
         graphql_context: GraphqlContext = info.context
         db: InfrahubDatabase = graphql_context.db
-        pool: CoreNode | None = await NodeManager.get_one(id=pool_id, db=db, branch=graphql_context.branch)
+        pool = await NodeManager.get_one(id=pool_id, db=db, kind=CoreNode, branch=graphql_context.branch)
         pool = _validate_pool_type(pool_id=pool_id, pool=pool)
         if pool.get_kind() == "CoreNumberPool":
             return await resolve_number_pool_utilization(
