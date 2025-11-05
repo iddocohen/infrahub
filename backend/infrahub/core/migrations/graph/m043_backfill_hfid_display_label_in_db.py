@@ -11,7 +11,7 @@ from infrahub.core import registry
 from infrahub.core.branch import Branch
 from infrahub.core.constants import GLOBAL_BRANCH_NAME, BranchSupportType, RelationshipDirection
 from infrahub.core.initialization import get_root_node
-from infrahub.core.migrations.shared import MigrationResult
+from infrahub.core.migrations.shared import MigrationResult, get_migration_console
 from infrahub.core.query import Query, QueryType
 from infrahub.types import is_large_attribute_type
 
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from infrahub.core.schema.basenode_schema import SchemaAttributePath
     from infrahub.core.schema.schema_branch import SchemaBranch
     from infrahub.database import InfrahubDatabase
+
+
+console = get_migration_console()
 
 
 class DefaultBranchNodeCount(Query):
@@ -629,7 +632,7 @@ class Migration043(MigrationRequiringRebase):
         progress: Progress | None = None,
         update_task: TaskID | None = None,
     ) -> None:
-        print(f"Processing {schema.kind}...", end="")
+        console.log(f"Processing {schema.kind}...", end="")
 
         schema_paths_by_name: dict[str, list[SchemaAttributePath]] = {}
         for source_attribute_schema in attribute_schema_map.keys():
@@ -702,7 +705,7 @@ class Migration043(MigrationRequiringRebase):
 
             offset += self.update_batch_size
 
-        print("done")
+        console.log("done")
 
     async def execute(self, db: InfrahubDatabase) -> MigrationResult:
         root_node = await get_root_node(db=db, initialize=False)
@@ -721,7 +724,7 @@ class Migration043(MigrationRequiringRebase):
         hfid_attribute_schema = base_node_schema.get_attribute("human_friendly_id")
 
         try:
-            with Progress() as progress:
+            with Progress(console=console) as progress:
                 update_task = progress.add_task(
                     f"Set display_label and human_friendly_id for {total_nodes_count} nodes on default branch",
                     total=total_nodes_count,
@@ -762,7 +765,7 @@ class Migration043(MigrationRequiringRebase):
         source_attribute_schema: AttributeSchema,
         destination_attribute_schema: AttributeSchema,
     ) -> None:
-        print(f"Processing {schema.kind}.{destination_attribute_schema.name} for {branch.name}...", end="")
+        console.log(f"Processing {schema.kind}.{destination_attribute_schema.name} for {branch.name}...", end="")
 
         schema_property = getattr(schema, source_attribute_schema.name)
         if isinstance(schema_property, list):
@@ -788,7 +791,7 @@ class Migration043(MigrationRequiringRebase):
 
             schema_path_values_map = get_details_query.get_result_map(schema_paths)
             if not schema_path_values_map:
-                print("done")
+                console.log("done")
                 break
             formatted_schema_path_values_map = {}
             for k, v in schema_path_values_map.items():

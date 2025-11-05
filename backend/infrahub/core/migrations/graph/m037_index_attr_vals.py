@@ -3,13 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from rich.console import Console
-
 from infrahub.constants.database import IndexType
 from infrahub.core.attribute import MAX_STRING_LENGTH
-from infrahub.core.migrations.shared import MigrationResult
+from infrahub.core.migrations.shared import MigrationResult, get_migration_console
 from infrahub.core.query import Query, QueryType
-from infrahub.core.timestamp import Timestamp
 from infrahub.database.index import IndexItem
 from infrahub.database.neo4j import IndexManagerNeo4j
 from infrahub.log import get_logger
@@ -467,24 +464,19 @@ class Migration037(ArbitraryMigration):
         return result
 
     async def execute(self, db: InfrahubDatabase) -> MigrationResult:  # noqa: PLR0915
-        console = Console()
+        console = get_migration_console()
         result = MigrationResult()
 
         # find the active schema attributes that have a LARGE_ATTRIBUTE_TYPE kind on all branches
-        console.print(
-            f"{Timestamp().to_string()} Determining schema attribute types and timestamps on all branches...", end=""
-        )
+        console.log("Determining schema attribute types and timestamps on all branches...")
         get_large_attribute_types_query = await GetLargeAttributeTypesQuery.init(db=db)
         await get_large_attribute_types_query.execute(db=db)
         schema_attribute_timeframes = get_large_attribute_types_query.get_large_attribute_type_timeframes()
-        console.print("done")
+        console.log("Schema attribute type discovery complete.")
 
         # find which schema attributes are large_types in the default branch, but updated to non-large_type on other branches
         # {(kind, attr_name): SchemaAttributeTimeframe}
-        console.print(
-            f"{Timestamp().to_string()} Determining which schema attributes have been updated to non-large_type on non-default branches...",
-            end="",
-        )
+        console.log("Determining schema attribute updates on non-default branches...")
         main_schema_attribute_timeframes_map: dict[tuple[str, str], SchemaAttributeTimeframe] = {}
         for schema_attr_time in schema_attribute_timeframes:
             if schema_attr_time.is_default_branch:
@@ -505,18 +497,18 @@ class Migration037(ArbitraryMigration):
                 and default_schema_attr_time.from_time < schema_attr_time.branched_from
             ):
                 large_type_reverts.append(schema_attr_time)
-        console.print("done")
+        console.log("Schema attribute update analysis complete.")
 
         # drop the index on the AttributeValueNonIndexed vertex, there won't be any at this point anyway
-        console.print(f"{Timestamp().to_string()} Dropping index on AttributeValueIndexed vertices...", end="")
+        console.log("Dropping index on AttributeValueIndexed vertices...")
         index_manager = IndexManagerNeo4j(db=db)
         index_manager.init(nodes=[AV_INDEXED_INDEX], rels=[])
         await index_manager.drop()
-        console.print("done")
+        console.log("Dropped index on AttributeValueIndexed vertices.")
 
         # create the temporary non-indexed attribute value vertices for LARGE_ATTRIBUTE_TYPE attributes
         # start with default branch
-        console.print(f"{Timestamp().to_string()} Update non-indexed attribute values with temporary label...", end="")
+        console.log("Creating temporary non-indexed attribute values for large attribute types...")
         large_schema_attribute_timeframes = [
             schema_attr_time for schema_attr_time in schema_attribute_timeframes if schema_attr_time.is_large_type
         ]
@@ -525,53 +517,42 @@ class Migration037(ArbitraryMigration):
                 db=db, schema_attribute_timeframe=schema_attr_time
             )
             await create_non_indexed_attribute_value_query.execute(db=db)
-        console.print("done")
+        console.log("Temporary non-indexed attribute values established.")
 
         # re-index attribute values on branches where the type was updated to non-large_type
-        console.print(
-            f"{Timestamp().to_string()} Indexing attribute values on branches where the attribute schema was updated to a non-large_type...",
-            end="",
-        )
+        console.log("Re-indexing attribute values on branches updated to non-large types...")
         for schema_attr_time in large_type_reverts:
             revert_non_index_on_branch_query = await RevertNonIndexOnBranchQuery.init(
                 db=db, schema_attribute_timeframe=schema_attr_time
             )
             await revert_non_index_on_branch_query.execute(db=db)
-        console.print("done")
+        console.log("Re-indexed attribute values on updated branches.")
 
         # set the AttributeValue vertices to be AttributeValueIndexed
-        console.print(
-            f"{Timestamp().to_string()} Update all AttributeValue vertices to add the AttributeValueIndexed label...",
-            end="",
-        )
+        console.log("Adding AttributeValueIndexed label to AttributeValue vertices...")
         set_attribute_value_indexed_query = await SetAttributeValueIndexedQuery.init(db=db)
         await set_attribute_value_indexed_query.execute(db=db)
-        console.print("done")
+        console.log("AttributeValue vertices now carry the AttributeValueIndexed label.")
 
         # set AttributeValueNonIndexed vertices to just AttributeValue
-        console.print(
-            f"{Timestamp().to_string()} Update all AttributeValueNonIndexed vertices to be AttributeValue (no index)...",
-            end="",
-        )
+        console.log("Restoring AttributeValue label on AttributeValueNonIndexed vertices...")
         finalize_attribute_value_non_indexed_query = await FinalizeAttributeValueNonIndexedQuery.init(db=db)
         await finalize_attribute_value_non_indexed_query.execute(db=db)
-        console.print("done")
+        console.log("AttributeValueNonIndexed vertices normalized to AttributeValue.")
 
         # de-index all attribute values too large to be indexed
-        console.print(
-            f"{Timestamp().to_string()} De-index any legacy attribute data that is too large to be indexed...", end=""
-        )
+        console.log("De-indexing legacy attribute data exceeding index limits...")
         de_index_large_attribute_values_query = await DeIndexLargeAttributeValuesQuery.init(
             db=db, max_value_size=MAX_STRING_LENGTH
         )
         await de_index_large_attribute_values_query.execute(db=db)
-        console.print("done")
+        console.log("De-indexed attribute values exceeding index limitations.")
 
         # add the index back to the AttributeValueNonIndexed vertex
-        console.print(f"{Timestamp().to_string()} Add the index back to the AttributeValueIndexed label...", end="")
+        console.log("Adding index back to the AttributeValueIndexed label...")
         index_manager = IndexManagerNeo4j(db=db)
         index_manager.init(nodes=[AV_INDEXED_INDEX], rels=[])
         await index_manager.add()
-        console.print("done")
+        console.log("Reinstated index on the AttributeValueIndexed label.")
 
         return result
